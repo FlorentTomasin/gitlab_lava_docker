@@ -1,10 +1,17 @@
-
+###########################################################
+# Maintainer: Florent TOMASIN
+###########################################################
 version: '3.2'
 
 services:
+###########################################################
+# Gitlab CE:
+# Depending on the setup, change the port mappping or host.
+###########################################################
   gitlab:
-    image: gitlab/gitlab-ce:${GITLAB_CE_VERSION}-ce.0
+    image: gitlab/gitlab-ce:${GITLAB_CE_VERSION}
     restart: always
+    container_name: gitlab
     hostname: gitlab
     volumes:
       - ./volumes/gitlab-ce/config:/etc/gitlab:Z
@@ -19,40 +26,95 @@ services:
       - redis
       - postgres
 
+###########################################################
+# Gitlab Runners:
+# Define as many as require. Don't forget to create the
+# respective directory in volume.
+###########################################################
   gitlab-runner1:
-    image: gitlab/gitlab-runner:alpine-v${GITLAB_RUNNER_VERSION}
+    image: gitlab/gitlab-runner:${GITLAB_RUNNER_VERSION}
     restart: always
+    container_name: gitlab-runner1
     volumes:
       - ./volumes/gitlab-runner1:/etc/gitlab-runner:Z
       - /var/run/docker.sock:/var/run/docker.sock
 
   #~ gitlab-runner2:
     #~ image: gitlab/gitlab-runner:alpine-v${GITLAB_RUNNER_VERSION}
+    # restart: always
+    # container_name: gitlab-runner1
     #~ volumes:
-      #~ - ./gitlab-runner2:/etc/gitlab-runner:Z
+      #~ - ./volumes/gitlab-runner2:/etc/gitlab-runner:Z
       #~ - /var/run/docker.sock:/var/run/docker.sock
 
   #~ gitlab-runner3:
     #~ image: gitlab/gitlab-runner:alpine-v${GITLAB_RUNNER_VERSION}
+    # restart: always
+    # container_name: gitlab-runner1
     #~ volumes:
-      #~ - ./gitlab-runner3:/etc/gitlab-runner:Z
+      #~ - ./volumes/gitlab-runner3:/etc/gitlab-runner:Z
       #~ - /var/run/docker.sock:/var/run/docker.sock
 
+###########################################################
+# Postgres:
+# Used for the Gitlab database
+###########################################################
   postgres:
     image: postgres:${POSTGRES_VERSION}
     restart: always
+    container_name: postgres
     environment:
       - POSTGRES_USER=gitlab
-      - POSTGRES_DB=gitlabhq_production
+      - POSTGRES_DB=gitlab_db
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
-    restart: always
 
+###########################################################
+# Redis:
+# Used for the Gitlab key store
+###########################################################
   redis:
     image: redis:${REDIS_VERSION}
+    container_name: redis
     restart: always
     command:
       - --loglevel warning
     volumes:
       - ./volumes/redis:/var/lib/redis
+
+###########################################################
+# Redis:
+# Used for the Gitlab key store
+###########################################################
+#
+  # database:
+  #   image: postgres:9.6
+  #   environment:
+  #     POSTGRES_USER: lavaserver
+  #     POSTGRES_PASSWORD: mysecretpassword
+  #   volumes:
+  #     - ./volumes/postgres/:/var/lib/postgresql/data/
+
+  lava-server:
+    image: lavasoftware/${LAVA_SERVER_VERSION}
     restart: always
+    container_name: lava-server
+    volumes:
+      - ./volumes/lava-server/settings.conf:/etc/lava-server/settings.conf
+      - ./volumes/lava-server/instance.conf:/etc/lava-server/instance.conf
+      - ./volumes/lava-server/dispatcher-config/health-checks:/etc/lava-server/dispatcher-config/health-checks
+      - ./volumes/lava-server/dispatcher-config/devices:/etc/lava-server/dispatcher-config/devices
+      # - ./server/root/provision.sh:/root/provision.sh
+    ports:
+      - 1080:80
+    # depends_on:
+    #   - database
+
+  lava-dispatcher:
+    image: lavasoftware/${LAVA_DIPATCHER_VERSION}
+    restart: always
+    container_name: lava-dispatcher
+    environment:
+      - "DISPATCHER_HOSTNAME=--hostname=dispatcher.lava.therub.org"
+      - "LOGGER_URL=tcp://server:5555"
+      - "MASTER_URL=tcp://server:5556"
